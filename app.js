@@ -18,6 +18,10 @@ app.use(
   }),
 );
 const port = process.env.PORT || 7777;
+
+app.get("/", async (req, res) => {
+  res.send("app is working");
+});
 app.post("/api/v1/todos", todos);
 app.get("/api/v1/gettodos", gettodo);
 app.put("/api/v1/updatetodos/:id", updatetodos);
