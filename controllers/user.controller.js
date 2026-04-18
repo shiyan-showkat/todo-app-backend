@@ -107,8 +107,8 @@ export const login = async (req, res) => {
     return res
       .cookie("accesstoken", accessToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "lax",
+        secure: false,
+        sameSite: "none",
       })
       .cookie("refreshtoken", refreshToken, {
         httpOnly: true,
