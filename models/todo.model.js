@@ -5,6 +5,11 @@ const todoschema = new mongoose.Schema({
     type: String,
     unique: true,
   },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "users",
+    required: true,
+  },
   completed: {
     type: Boolean,
     default: false,
