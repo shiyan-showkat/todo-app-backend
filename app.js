@@ -19,7 +19,6 @@ import {
   newrefreshtoken,
   forgotPasswordOtp,
   verifyForgotOtp,
-  me,
   resetPassword,
 } from "./controllers/user.controller.js";
 dotenv.config();
