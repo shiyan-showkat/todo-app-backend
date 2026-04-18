@@ -29,7 +29,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: " https://todo-app-backend-gfh3.onrender.com",
+    origin: "https://todo-app-frontend-omega-mauve.vercel.app",
     credentials: true,
   }),
 );
