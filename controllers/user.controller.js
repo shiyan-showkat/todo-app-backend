@@ -109,11 +109,13 @@ export const login = async (req, res) => {
         httpOnly: true,
         secure: true,
         sameSite: "none",
+        path: "/",
       })
       .cookie("refreshtoken", refreshToken, {
         httpOnly: true,
         secure: true,
         sameSite: "none",
+        path: "/",
       })
       .status(200)
       .json({
@@ -135,6 +137,7 @@ export const logout = async (req, res) => {
     httpOnly: true,
     secure: true,
     sameSite: "none",
+    path: "/",
   };
 
   return res
@@ -175,6 +178,7 @@ export const newrefreshtoken = async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "none",
+      path: "/",
     };
 
     return res
