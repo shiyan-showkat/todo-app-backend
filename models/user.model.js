@@ -25,7 +25,7 @@ const userschema = new mongoose.Schema({
 });
 userschema.methods.generateAccesstoken = function () {
   return jwt.sign({ id: this._id }, process.env.ACCESS_SECRET, {
-    expiresIn: "1d",
+    expiresIn: "2d",
   });
 };
 userschema.methods.generateRefreshtoken = function () {

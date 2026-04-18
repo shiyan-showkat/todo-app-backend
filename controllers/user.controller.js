@@ -124,15 +124,22 @@ export const login = async (req, res) => {
     return res.status(500).json({ message: "server error" });
   }
 };
+
 export const logout = async (req, res) => {
   const user = await users.findByIdAndUpdate(
     req.user,
     { $set: { refreshToken: null } },
     { new: true },
   );
+  const options = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+  };
+
   return res
-    .clearCookie("accesstoken")
-    .clearCookie("refreshtoken")
+    .clearCookie("accesstoken", options)
+    .clearCookie("refreshtoken", options)
     .status(200)
     .json({ message: "user logout successfully", user });
 };
@@ -166,7 +173,7 @@ export const newrefreshtoken = async (req, res) => {
 
     const options = {
       httpOnly: true,
-      secure: false,
+      secure: true,
       sameSite: "none",
     };
 
