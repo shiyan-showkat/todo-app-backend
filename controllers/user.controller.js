@@ -266,15 +266,3 @@ export const resetPassword = async (req, res) => {
     return res.status(500).json({ message: "server error" });
   }
 };
-export const me = (req, res) => {
-  if (!req.user) {
-    return res.status(401).json({
-      message: "Not logged in",
-    });
-  }
-
-  return res.status(200).json({
-    message: "Logged in",
-    userId: req.user,
-  });
-};

@@ -20,7 +20,6 @@ import {
   forgotPasswordOtp,
   verifyForgotOtp,
   resetPassword,
-  me,
 } from "./controllers/user.controller.js";
 dotenv.config();
 connectdb();
