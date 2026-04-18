@@ -105,13 +105,13 @@ export const login = async (req, res) => {
     await user.save();
 
     return res
-      .cookie("accesstoken", accessToken, {
+      .cookie("accessToken", accessToken, {
         httpOnly: true,
         secure: true,
         sameSite: "none",
         path: "/",
       })
-      .cookie("refreshtoken", refreshToken, {
+      .cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: true,
         sameSite: "none",
@@ -141,8 +141,8 @@ export const logout = async (req, res) => {
   };
 
   return res
-    .clearCookie("accesstoken", options)
-    .clearCookie("refreshtoken", options)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
     .status(200)
     .json({ message: "user logout successfully", user });
 };
@@ -150,7 +150,7 @@ export const logout = async (req, res) => {
 export const newrefreshtoken = async (req, res) => {
   console.log("🔁 refresh hit");
 
-  const token = req.cookies?.refreshtoken;
+  const token = req.cookies?.refreshToken;
 
   if (!token) {
     return res.status(400).json({ message: "token not found" });
@@ -168,10 +168,10 @@ export const newrefreshtoken = async (req, res) => {
       return res.status(400).json({ message: "invalid refresh token" });
     }
 
-    const accesstoken = user.generateAccesstoken();
-    const refreshtoken = user.generateRefreshtoken();
+    const accessToken = user.generateAccesstoken();
+    const refreshToken = user.generateRefreshtoken();
 
-    user.refreshToken = refreshtoken;
+    user.refreshToken = refreshToken;
     await user.save();
 
     const options = {
@@ -182,8 +182,8 @@ export const newrefreshtoken = async (req, res) => {
     };
 
     return res
-      .cookie("accesstoken", accesstoken, options)
-      .cookie("refreshtoken", refreshtoken, options)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
       .status(200)
       .json({ message: "tokens refreshed" });
   } catch (err) {
