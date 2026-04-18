@@ -108,10 +108,12 @@ export const login = async (req, res) => {
       .cookie("accesstoken", accessToken, {
         httpOnly: true,
         secure: false,
+        sameSite: "lax",
       })
       .cookie("refreshtoken", refreshToken, {
         httpOnly: true,
         secure: false,
+        sameSite: "lax",
       })
       .status(200)
       .json({

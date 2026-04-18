@@ -10,7 +10,7 @@ const middleware = (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.ACCESS_SECRET);
 
-    req.user = decoded.id; // 🔥 correct user id
+    req.user = decoded.id;
     next();
   } catch (err) {
     console.log(err);
