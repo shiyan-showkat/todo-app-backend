@@ -107,12 +107,12 @@ export const login = async (req, res) => {
     return res
       .cookie("accesstoken", accessToken, {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite: "none",
       })
       .cookie("refreshtoken", refreshToken, {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite: "none",
       })
       .status(200)
