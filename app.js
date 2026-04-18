@@ -56,12 +56,6 @@ app.post("/api/v1/newrefreshtoken", newrefreshtoken);
 app.post("/api/v1/forgot-otp", forgotPasswordOtp);
 app.post("/api/v1/verify-forgot-otp", verifyForgotOtp);
 app.post("/api/v1/reset-password", resetPassword);
-app.get("/api/v1/me", middleware, (req, res) => {
-  return res.status(200).json({
-    userId: req.user,
-    loggedIn: true,
-  });
-});
 
 app.listen(port, () => {
   console.log(`server is listening on port:${port}`);
