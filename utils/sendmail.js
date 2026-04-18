@@ -2,29 +2,30 @@ import nodemailer from "nodemailer";
 
 export const sendEmail = async (to, otp) => {
   try {
-    console.log("EMAIL:", process.env.USER_EMAIL);
-    console.log("PASS EXISTS:", !!process.env.USER_PASS);
-
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
         user: process.env.USER_EMAIL,
         pass: process.env.USER_PASS,
       },
-      tls: {
-        rejectUnauthorized: false,
-      },
     });
 
     const info = await transporter.sendMail({
-      from: process.env.USER_EMAIL,
+      from: `"Shiyan App 🚀" <${process.env.USER_EMAIL}>`,
       to,
       subject: "OTP Verification",
-      text: `Your OTP is ${otp}`,
+      html: `
+        <div style="font-family:sans-serif;">
+          <h2>OTP Verification</h2>
+          <p>Your OTP is:</p>
+          <h1 style="color:#facc15;">${otp}</h1>
+          <p>This OTP will expire in 5 minutes.</p>
+        </div>
+      `,
     });
 
     console.log("EMAIL SENT SUCCESS:", info.response);
   } catch (error) {
-    console.log("EMAIL FAILED:", error);
+    console.log("EMAIL FAILED ❌:", error.message);
   }
 };
