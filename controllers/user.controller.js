@@ -267,8 +267,11 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-const user = async (req, res) => {
+export const user = async (req, res) => {
   if (!req.user) {
     return res.status(400).json({ message: "user not found" });
   }
+  return res
+    .status(200)
+    .json({ message: "user valid successfully", userId: req.user });
 };
