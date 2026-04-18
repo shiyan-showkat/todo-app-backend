@@ -266,3 +266,9 @@ export const resetPassword = async (req, res) => {
     return res.status(500).json({ message: "server error" });
   }
 };
+
+const user = async (req, res) => {
+  if (!req.user) {
+    return res.status(400).json({ message: "user not found" });
+  }
+};
