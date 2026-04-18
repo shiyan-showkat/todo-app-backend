@@ -3,7 +3,6 @@ import bcrypt from "bcrypt";
 import { sendEmail } from "../utils/sendmail.js";
 import jwt from "jsonwebtoken";
 
-// SIGNUP
 export const signup = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -39,7 +38,6 @@ export const signup = async (req, res) => {
   }
 };
 
-// VERIFY OTP
 export const verifyotp = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -76,7 +74,6 @@ export const verifyotp = async (req, res) => {
   }
 };
 
-// LOGIN
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
