@@ -12,7 +12,7 @@ export const sendEmail = async (to, otp) => {
         pass: process.env.USER_PASS,
       },
       tls: {
-        rejectUnauthorized: false, // 🔥 IMPORTANT FIX
+        rejectUnauthorized: false,
       },
     });
 
