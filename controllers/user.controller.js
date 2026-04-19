@@ -2,7 +2,6 @@ import { users } from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import { sendEmail } from "../utils/sendmail.js";
 import jwt from "jsonwebtoken";
-import { sendSMS } from "../utils/sms.js";
 
 const accessOptions = {
   httpOnly: true,
@@ -19,60 +18,54 @@ const refreshOptions = {
   path: "/",
   maxAge: 10 * 24 * 60 * 60 * 1000,
 };
+
+const isProd = process.env.NODE_ENV === "production";
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: isProd, // 🔥 important fix
+  sameSite: isProd ? "none" : "lax",
+  path: "/",
+};
+
 export const signup = async (req, res) => {
   try {
-    const { email, phone, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!password || (!email && !phone)) {
-      return res.status(400).json({ message: "email or phone required" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "email required" });
     }
 
-    const query = email ? { email } : { phone };
-
-    const exist = await users.findOne(query);
+    const exist = await users.findOne({ email });
     if (exist) {
       return res.status(400).json({ message: "user exists" });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const newUser = await users.create({
-      email: email || null,
-      phone: phone || null,
+    await users.create({
+      email,
       password: await bcrypt.hash(password, 10),
       otp,
       otpExpiry: Date.now() + 5 * 60 * 1000,
       isVerified: false,
     });
 
-    // 🔥 SEND OTP
-    if (email) {
-      await sendEmail(email, otp);
-    } else if (phone) {
-      await sendSMS(phone, otp);
-    }
+    await sendEmail(email, otp);
 
     return res.status(201).json({
       message: "OTP sent",
-      identifier: email || phone,
     });
-  } catch (err) {
+  } catch {
     return res.status(500).json({ message: "server error" });
   }
 };
+
 export const verifyotp = async (req, res) => {
   try {
-    const { identifier, otp } = req.body;
+    const { email, otp } = req.body;
 
-    if (!identifier || !otp) {
-      return res.status(400).json({ message: "invalid request" });
-    }
-
-    const isEmail = identifier.includes("@");
-
-    const query = isEmail ? { email: identifier } : { phone: identifier };
-
-    const user = await users.findOne(query);
+    const user = await users.findOne({ email });
 
     if (!user) {
       return res.status(400).json({ message: "user not found" });
@@ -89,35 +82,32 @@ export const verifyotp = async (req, res) => {
     await user.save();
 
     return res.json({ message: "verified" });
-  } catch (err) {
+  } catch {
     return res.status(500).json({ message: "server error" });
   }
 };
+
 export const login = async (req, res) => {
   try {
-    const { identifier, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!identifier || !password) {
+    if (!email || !password) {
       return res.status(400).json({ message: "all fields required" });
     }
 
-    const isEmail = identifier.includes("@");
-
-    const query = isEmail ? { email: identifier } : { phone: identifier };
-
-    const user = await users.findOne(query);
+    const user = await users.findOne({ email });
 
     if (!user) {
       return res.status(400).json({ message: "user not found" });
     }
 
     if (!user.isVerified) {
-      return res.status(400).json({ message: "user not verified" });
+      return res.status(400).json({ message: "not verified" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const ok = await bcrypt.compare(password, user.password);
 
-    if (!isMatch) {
+    if (!ok) {
       return res.status(400).json({ message: "wrong password" });
     }
 
@@ -128,21 +118,13 @@ export const login = async (req, res) => {
     await user.save();
 
     return res
-      .cookie("accessToken", accessToken, accessOptions)
-      .cookie("refreshToken", refreshToken, refreshOptions)
-      .json({
-        message: "login success",
-        user: {
-          id: user._id,
-          email: user.email,
-          phone: user.phone,
-        },
-      });
-  } catch (err) {
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, cookieOptions)
+      .json({ message: "login success" });
+  } catch {
     return res.status(500).json({ message: "server error" });
   }
 };
-
 // ✅ LOGOUT
 export const logout = async (req, res) => {
   await users.findByIdAndUpdate(req.user, {
