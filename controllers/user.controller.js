@@ -2,6 +2,7 @@ import { users } from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import { sendEmail } from "../utils/sendmail.js";
 import jwt from "jsonwebtoken";
+import { sendSMS } from "../utils/sms.js";
 
 const accessOptions = {
   httpOnly: true,
@@ -18,77 +19,128 @@ const refreshOptions = {
   path: "/",
   maxAge: 10 * 24 * 60 * 60 * 1000,
 };
-
-// ✅ SIGNUP
 export const signup = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone, password } = req.body;
 
-    if (!email || !password)
-      return res.status(400).json({ message: "all fields required" });
+    if (!password || (!email && !phone)) {
+      return res.status(400).json({ message: "email or phone required" });
+    }
 
-    const exist = await users.findOne({ email });
-    if (exist) return res.status(400).json({ message: "email already exists" });
+    const query = email ? { email } : { phone };
+
+    const exist = await users.findOne(query);
+    if (exist) {
+      return res.status(400).json({ message: "user exists" });
+    }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     const newUser = await users.create({
-      email,
+      email: email || null,
+      phone: phone || null,
       password: await bcrypt.hash(password, 10),
       otp,
       otpExpiry: Date.now() + 5 * 60 * 1000,
       isVerified: false,
     });
 
-    await sendEmail(email, otp);
+    // 🔥 SEND OTP
+    if (email) {
+      await sendEmail(email, otp);
+    } else if (phone) {
+      await sendSMS(phone, otp);
+    }
 
-    res.status(201).json({ message: "OTP sent", userId: newUser._id });
-  } catch {
-    res.status(500).json({ message: "server error" });
+    return res.status(201).json({
+      message: "OTP sent",
+      identifier: email || phone,
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "server error" });
   }
 };
-
-// ✅ VERIFY OTP
 export const verifyotp = async (req, res) => {
-  const { email, otp } = req.body;
+  try {
+    const { identifier, otp } = req.body;
 
-  const user = await users.findOne({ email });
+    if (!identifier || !otp) {
+      return res.status(400).json({ message: "invalid request" });
+    }
 
-  if (!user || user.otp !== otp || user.otpExpiry < Date.now()) {
-    return res.status(400).json({ message: "invalid otp" });
+    const isEmail = identifier.includes("@");
+
+    const query = isEmail ? { email: identifier } : { phone: identifier };
+
+    const user = await users.findOne(query);
+
+    if (!user) {
+      return res.status(400).json({ message: "user not found" });
+    }
+
+    if (user.otp !== otp || user.otpExpiry < Date.now()) {
+      return res.status(400).json({ message: "invalid otp" });
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    user.otpExpiry = null;
+
+    await user.save();
+
+    return res.json({ message: "verified" });
+  } catch (err) {
+    return res.status(500).json({ message: "server error" });
   }
-
-  user.isVerified = true;
-  user.otp = null;
-  user.otpExpiry = null;
-  await user.save();
-
-  res.json({ message: "verified" });
 };
-
-// ✅ LOGIN
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { identifier, password } = req.body;
 
-  const user = await users.findOne({ email });
+    if (!identifier || !password) {
+      return res.status(400).json({ message: "all fields required" });
+    }
 
-  if (!user || !user.isVerified)
-    return res.status(400).json({ message: "invalid user" });
+    const isEmail = identifier.includes("@");
 
-  const ok = await bcrypt.compare(password, user.password);
+    const query = isEmail ? { email: identifier } : { phone: identifier };
 
-  if (!ok) return res.status(400).json({ message: "wrong password" });
+    const user = await users.findOne(query);
 
-  const accessToken = user.generateAccesstoken();
-  const refreshToken = user.generateRefreshtoken();
+    if (!user) {
+      return res.status(400).json({ message: "user not found" });
+    }
 
-  user.refreshToken = refreshToken;
-  await user.save();
+    if (!user.isVerified) {
+      return res.status(400).json({ message: "user not verified" });
+    }
 
-  res
-    .cookie("accessToken", accessToken, accessOptions)
-    .cookie("refreshToken", refreshToken, refreshOptions)
-    .json({ message: "login success" });
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "wrong password" });
+    }
+
+    const accessToken = user.generateAccesstoken();
+    const refreshToken = user.generateRefreshtoken();
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    return res
+      .cookie("accessToken", accessToken, accessOptions)
+      .cookie("refreshToken", refreshToken, refreshOptions)
+      .json({
+        message: "login success",
+        user: {
+          id: user._id,
+          email: user.email,
+          phone: user.phone,
+        },
+      });
+  } catch (err) {
+    return res.status(500).json({ message: "server error" });
+  }
 };
 
 // ✅ LOGOUT

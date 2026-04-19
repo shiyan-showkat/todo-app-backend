@@ -63,8 +63,6 @@ app.post("/api/v1/reset-password", resetPassword);
 // ✅ CHECK USER (PROTECTED)
 app.get("/api/v1/me", middleware, user);
 
-// ================= TODO ROUTES =================
-
 // 🔐 ALL PROTECTED
 app.post("/api/v1/todos", middleware, todos);
 app.get("/api/v1/gettodos", middleware, gettodo);
