@@ -3,25 +3,38 @@ import bcrypt from "bcrypt";
 import { sendEmail } from "../utils/sendmail.js";
 import jwt from "jsonwebtoken";
 
+const accessOptions = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "none",
+  path: "/",
+  maxAge: 2 * 24 * 60 * 60 * 1000,
+};
+
+const refreshOptions = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "none",
+  path: "/",
+  maxAge: 10 * 24 * 60 * 60 * 1000,
+};
+
+// ✅ SIGNUP
 export const signup = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "all fields are required" });
-    }
+    if (!email || !password)
+      return res.status(400).json({ message: "all fields required" });
 
-    const existingUser = await users.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "email already exists" });
-    }
+    const exist = await users.findOne({ email });
+    if (exist) return res.status(400).json({ message: "email already exists" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await users.create({
       email,
-      password: hashedPassword,
+      password: await bcrypt.hash(password, 10),
       otp,
       otpExpiry: Date.now() + 5 * 60 * 1000,
       isVerified: false,
@@ -29,144 +42,80 @@ export const signup = async (req, res) => {
 
     await sendEmail(email, otp);
 
-    return res.status(201).json({
-      message: "OTP sent successfully",
-      userId: newUser._id,
-    });
-  } catch (err) {
-    return res.status(500).json({ message: "server error" });
+    res.status(201).json({ message: "OTP sent", userId: newUser._id });
+  } catch {
+    res.status(500).json({ message: "server error" });
   }
 };
 
+// ✅ VERIFY OTP
 export const verifyotp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+  const { email, otp } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({ message: "all fields are required" });
-    }
+  const user = await users.findOne({ email });
 
-    const user = await users.findOne({ email });
-
-    if (!user) {
-      return res.status(400).json({ message: "user not found" });
-    }
-
-    if (user.otp !== otp) {
-      return res.status(400).json({ message: "otp is wrong" });
-    }
-
-    if (user.otpExpiry < Date.now()) {
-      return res.status(400).json({ message: "otp expired" });
-    }
-
-    user.isVerified = true;
-    user.otp = null;
-    user.otpExpiry = null;
-
-    await user.save();
-
-    return res.status(200).json({
-      message: "OTP verified successfully",
-    });
-  } catch (err) {
-    return res.status(500).json({ message: "server error" });
+  if (!user || user.otp !== otp || user.otpExpiry < Date.now()) {
+    return res.status(400).json({ message: "invalid otp" });
   }
+
+  user.isVerified = true;
+  user.otp = null;
+  user.otpExpiry = null;
+  await user.save();
+
+  res.json({ message: "verified" });
 };
 
+// ✅ LOGIN
 export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "all fields are required" });
-    }
+  const user = await users.findOne({ email });
 
-    const user = await users.findOne({ email });
+  if (!user || !user.isVerified)
+    return res.status(400).json({ message: "invalid user" });
 
-    if (!user) {
-      return res.status(400).json({ message: "user not found" });
-    }
+  const ok = await bcrypt.compare(password, user.password);
 
-    if (!user.isVerified) {
-      return res.status(400).json({ message: "please verify OTP first" });
-    }
+  if (!ok) return res.status(400).json({ message: "wrong password" });
 
-    const checkPassword = await bcrypt.compare(password, user.password);
+  const accessToken = user.generateAccesstoken();
+  const refreshToken = user.generateRefreshtoken();
 
-    if (!checkPassword) {
-      return res.status(400).json({ message: "invalid credentials" });
-    }
+  user.refreshToken = refreshToken;
+  await user.save();
 
-    const accessToken = user.generateAccesstoken();
-    const refreshToken = user.generateRefreshtoken();
-
-    user.refreshToken = refreshToken;
-    await user.save();
-
-    return res
-      .cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-      })
-      .cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-      })
-      .status(200)
-      .json({
-        message: "login successful",
-        user,
-      });
-  } catch (err) {
-    return res.status(500).json({ message: "server error" });
-  }
+  res
+    .cookie("accessToken", accessToken, accessOptions)
+    .cookie("refreshToken", refreshToken, refreshOptions)
+    .json({ message: "login success" });
 };
 
+// ✅ LOGOUT
 export const logout = async (req, res) => {
-  const user = await users.findByIdAndUpdate(
-    req.user,
-    { $set: { refreshToken: null } },
-    { new: true },
-  );
-  const options = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-  };
+  await users.findByIdAndUpdate(req.user, {
+    $set: { refreshToken: null },
+  });
 
-  return res
-    .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
-    .status(200)
-    .json({ message: "user logout successfully", user });
+  res
+    .clearCookie("accessToken", accessOptions)
+    .clearCookie("refreshToken", refreshOptions)
+    .json({ message: "logout" });
 };
 
+// ✅ REFRESH TOKEN
 export const newrefreshtoken = async (req, res) => {
-  console.log("🔁 refresh hit");
-
   const token = req.cookies?.refreshToken;
 
-  if (!token) {
-    return res.status(400).json({ message: "token not found" });
-  }
+  if (!token) return res.status(401).json({ message: "no token" });
 
   try {
     const decoded = jwt.verify(token, process.env.REFRESH_SECRET);
 
     const user = await users.findById(decoded.id);
-    if (!user) {
-      return res.status(400).json({ message: "user not found" });
-    }
 
-    if (user.refreshToken !== token) {
-      return res.status(400).json({ message: "invalid refresh token" });
-    }
+    if (!user || user.refreshToken !== token)
+      return res.status(401).json({ message: "invalid token" });
 
     const accessToken = user.generateAccesstoken();
     const refreshToken = user.generateRefreshtoken();
@@ -174,115 +123,59 @@ export const newrefreshtoken = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    const options = {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-    };
-
-    return res
-      .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
-      .status(200)
-      .json({ message: "tokens refreshed" });
-  } catch (err) {
-    console.log("refresh error:", err);
-    return res.status(500).json({ message: "refresh failed" });
+    res
+      .cookie("accessToken", accessToken, accessOptions)
+      .cookie("refreshToken", refreshToken, refreshOptions)
+      .json({ message: "refreshed" });
+  } catch {
+    res.status(401).json({ message: "expired" });
   }
 };
 
+// ✅ USER CHECK
+export const user = (req, res) => {
+  res.json({ userId: req.user });
+};
+
+// ✅ FORGOT PASSWORD
 export const forgotPasswordOtp = async (req, res) => {
-  try {
-    const { email } = req.body;
+  const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ message: "all fields are required" });
-    }
+  const user = await users.findOne({ email });
+  if (!user) return res.status(400).json({ message: "not found" });
 
-    const user = await users.findOne({ email });
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    if (!user) {
-      return res.status(400).json({ message: "user not found" });
-    }
+  user.otp = otp;
+  user.otpExpiry = Date.now() + 5 * 60 * 1000;
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await user.save();
+  await sendEmail(email, otp);
 
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000;
-
-    await user.save();
-
-    await sendEmail(email, otp);
-
-    return res.status(200).json({
-      message: "OTP sent to email",
-    });
-  } catch (err) {
-    return res.status(500).json({ message: "server error" });
-  }
+  res.json({ message: "otp sent" });
 };
+
 export const verifyForgotOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+  const { email, otp } = req.body;
 
-    const user = await users.findOne({ email });
+  const user = await users.findOne({ email });
 
-    if (!user) {
-      return res.status(400).json({ message: "user not found" });
-    }
+  if (!user || user.otp !== otp || user.otpExpiry < Date.now())
+    return res.status(400).json({ message: "invalid otp" });
 
-    if (user.otp !== otp) {
-      return res.status(400).json({ message: "invalid otp" });
-    }
-
-    if (user.otpExpiry < Date.now()) {
-      return res.status(400).json({ message: "otp expired" });
-    }
-
-    return res.status(200).json({
-      message: "otp verified",
-    });
-  } catch (err) {
-    return res.status(500).json({ message: "server error" });
-  }
+  res.json({ message: "otp ok" });
 };
 
 export const resetPassword = async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
+  const { email, newPassword } = req.body;
 
-    if (!email || !newPassword) {
-      return res.status(400).json({ message: "all fields required" });
-    }
+  const user = await users.findOne({ email });
 
-    const user = await users.findOne({ email });
+  user.password = await bcrypt.hash(newPassword, 10);
+  user.otp = null;
+  user.otpExpiry = null;
 
-    if (!user) {
-      return res.status(400).json({ message: "user not found" });
-    }
+  await user.save();
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    user.password = hashedPassword;
-    user.otp = null;
-    user.otpExpiry = null;
-
-    await user.save();
-
-    return res.status(200).json({
-      message: "password reset successful",
-    });
-  } catch (err) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
-
-export const user = async (req, res) => {
-  if (!req.user) {
-    return res.status(400).json({ message: "user not found" });
-  }
-  return res
-    .status(200)
-    .json({ message: "user valid successfully", userId: req.user });
+  res.json({ message: "password updated" });
 };

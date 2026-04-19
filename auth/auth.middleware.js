@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 
 const middleware = (req, res, next) => {
   try {
-    const token = req.cookies?.accessToken;
+    const token = req.cookies?.accessToken; // ✅ SAME NAME
 
     if (!token) {
       return res.status(401).json({ message: "token not found" });
@@ -13,7 +13,6 @@ const middleware = (req, res, next) => {
     req.user = decoded.id;
     next();
   } catch (err) {
-    console.log(err);
     return res.status(401).json({ message: "invalid token" });
   }
 };
